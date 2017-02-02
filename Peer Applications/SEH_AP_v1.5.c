@@ -15,7 +15,7 @@
 #include "msp430x22x4.h"
 #include "vlo_rand.h"
 
-#define MESSAGE_LENGTH		19	// must be less than or equal to MAX_APP_PAYLOAD	//
+#define MESSAGE_LENGTH		21	// must be less than or equal to MAX_APP_PAYLOAD	//25
 void TXString( char* string, int length );
 void MCU_Init(void);
 void transmitData(int addr, signed char rssi,  char msg[MESSAGE_LENGTH] );
@@ -95,6 +95,10 @@ void main (void)
 
   // network initialized
   TXString( "Done\r\n", 6);
+
+//  // Handle Linking
+//  SMPL_LinkListen(&linkID1);
+
 
   // main work loop
   while(1)
@@ -215,11 +219,11 @@ void transmitData(int addr, signed char rssi,  char msg[MESSAGE_LENGTH] )
 void transmitDataString(char addr[4],char rssi[3], char msg[MESSAGE_LENGTH] )
 {
 
-	char output[] = {"ID=XXX.X,Vcc=X.XXX,T=XXX.XX,RH=XX.XX,Acc_x=XXXXX.XX,Acc_y=XXXXX.XX,Acc_z=XXXXX.XX,P=XXXX.XX,Vpd=XXXX.X,status=XXXXXXXX.X\r\n"};
+	char output[] = {"id=X.XX&vcc=X.XXX&t=XXX.XX&rh=XX.XX&acc_x=XXXXX.XX&acc_y=XXXXX.XX&acc_z=XXXXX.XX&p=XXXX.XX&vpd=XXXX.X&vbat=XXXX.X&status=XXXXXXXX.X\r\n"};
 	//				  0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
 	//				  0         1         2         3         4         5         6         7         8         1         2         3         4
 
-	char id_string[] = {"YYY.0"};		// add '0' so that python can read it (for some reason only reads floats, not ints)
+	char id_string[] = {"Y.YY"};		// add '0' so that python can read it (for some reason only reads floats, not ints)
 	char vcc_string[] = {"Y.YYY"};
 	char t_string[] = {"YYY.YY"};
 	char rh_string[] = {"YY.YY"};
@@ -229,11 +233,12 @@ void transmitDataString(char addr[4],char rssi[3], char msg[MESSAGE_LENGTH] )
 	char p_string[] = {"YYYY.YY"};
 	char status_string[] = {"bbbbbbbb.0"};
 	char vpd_string[] = {"XXXX.0"};
+	char vbat_string[] = {"XXXX.0"};
 	int i,j;
 
 	i=0;
 
-	int ID = msg[i++];
+	int NODE_ID = msg[i++];
 	int Vcc = (msg[i++]<<8) + msg[i++];
 	int T =  (msg[i++]<<8) + msg[i++];
 	int RH =  (msg[i++]<<8) + msg[i++];
@@ -243,26 +248,28 @@ void transmitDataString(char addr[4],char rssi[3], char msg[MESSAGE_LENGTH] )
 	long P =  ((msg[i++]<<8) + msg[i++])&0xFFFF;
 	P = (P<<8)+msg[i++];
 	int Vpd = (msg[i++]<<8) + msg[i++];
+	int Vbat = (msg[i++]<<8) + msg[i++];
 	char msg_status = msg[i++];
 
+
 	// ID
-	if (ID<100)
-	{
-		id_string[0] = ' ';
-	}
-	else
-	{
-		id_string[0] = '0'+((ID/100)%10);
-	}
-	if (ID<10)
-	{
-		id_string[1] = ' ';
-	}
-	else
-	{
-		id_string[1] = '0'+((ID/10)%10);
-	}
-	id_string[2] = '0'+(ID%10);
+//	if (NODE_ID<100)
+//	{
+//		id_string[0] = ' ';
+//	}
+//	else
+//	{
+		id_string[0] = '0'+((NODE_ID/100)%10);
+//	}
+//	if (NODE_ID<10)
+//	{
+//		id_string[2] = ' ';
+//	}
+//	else
+//	{
+		id_string[2] = '0'+((NODE_ID/10)%10);
+//	}
+	id_string[3] = '0'+(NODE_ID%10);
 
 
 	// Vcc
@@ -454,6 +461,12 @@ void transmitDataString(char addr[4],char rssi[3], char msg[MESSAGE_LENGTH] )
 	vpd_string[2] = '0'+((Vpd/10)%10);
 	vpd_string[3] = '0'+(Vpd%10);
 
+	// Vbat
+	vbat_string[0] = '0'+((Vbat/1000)%10);
+	vbat_string[1] = '0'+((Vbat/100)%10);
+	vbat_string[2] = '0'+((Vbat/10)%10);
+	vbat_string[3] = '0'+(Vbat%10);
+
 	// Status
 	for (i=8; i>0; i--)
 	{
@@ -463,7 +476,7 @@ void transmitDataString(char addr[4],char rssi[3], char msg[MESSAGE_LENGTH] )
 
 // CREATE OUTPUT
 	j=0;
-	// ID
+	// NODE_ID
 	j += 3;
 	for (i = 0; i<sizeof(id_string)-1; i++)
 	{
@@ -534,7 +547,7 @@ void transmitDataString(char addr[4],char rssi[3], char msg[MESSAGE_LENGTH] )
 	j += i;
 	j += 1;
 
-	// Vpd
+	// Vpd=
 	j += 4;
 	for (i = 0; i<sizeof(vpd_string)-1; i++)
 	{
@@ -543,7 +556,16 @@ void transmitDataString(char addr[4],char rssi[3], char msg[MESSAGE_LENGTH] )
 	j += i;
 	j += 1;
 
-	// Status
+	// Vbat=
+	j += 5;
+	for (i = 0; i<sizeof(vbat_string)-1; i++)
+	{
+		output[i+j] = vbat_string[i];
+	}
+	j += i;
+	j += 1;
+
+	// status=
 	j += 7;
 	for (i = 0; i<sizeof(status_string)-1; i++)
 	{

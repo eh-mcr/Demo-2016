@@ -14,6 +14,10 @@
 #include "msp430x22x4.h"
 #include "vlo_rand.h"
 
+#define	ON                1
+#define OFF               0
+
+#define IN_TEST	OFF //ON/OFF	// set to non-zero for testing
 #define WakeupPeriod      15000             // ~10 sec (=15000/(12000/8))
 #define a_d_wakeup_time   15000              // ~30 sec
 #define TXPeriod          7500              // ~5 sec  (=7500/(12000/8))
@@ -24,6 +28,7 @@
 #define sec1              1500              // ~1 sec
 #define sec2              2610
 #define sec3              4500
+#define sec4              6000
 #define sec5              7500              // ~5 sec  (=7500/(12000/8))
 #define sec10             15000             // ~10 sec
 #define sec20             30000             // ~20 swec
@@ -32,6 +37,8 @@
 #define sec30_2           43000             // ~30sec 2 min?
 #define sec30_4           50434             // ~30sec 4 min?
 #define one_hour          5400000
+
+#define	test_delay		sec10				// delay between measurements in TEST mode
 
 #define port_delay        10                // 6ms - 1.5 msec
 
@@ -62,9 +69,6 @@
 #define xmt_count         400               // # max transmit on battery - 400
                                             // magic number
 
-#define	ON                1
-#define OFF               0
-
 unsigned int timer_state;
 unsigned char change_mode;
 unsigned char ftt_flag;
@@ -88,8 +92,8 @@ void display_mode(void);
 void check_bat_full(void);
 void createRandomAddress(void);
 
-#define MESSAGE_LENGTH		19	// must be less than or equal to MAX_APP_PAYLOAD	//5
-#define ID	0x01				// NODE ID - MUST BE SEPERATE FOR EVERY NODE USED
+#define MESSAGE_LENGTH		21	// must be less than or equal to MAX_APP_PAYLOAD	//25
+#define NODE_ID		79 //27/79				// NODE ID - MUST BE SEPERATE FOR EVERY NODE USED.  Use te last two digist from eZ430-RF2500 serial number.
 
 #define	YES	1
 #define	NO	0
@@ -107,13 +111,15 @@ unsigned char msg_status = 0;
 #define VCC_FLAG		BIT6
 #define STOP_FLAG		BIT7
 
+#define	delay_period		sec30
+
 // sensor trigger limits
 // Vcc - units of mV
 #define	VCC_DIFF_MAX		10		// trigger tx if difference in voltage eceeds this
-#define VCC_SLEEP_VOLTAGE	3300	// send to sleep if voltage goes below this
-#define VCC_REAWAKE_VOLTAGE	3450	// to re-awaken after sleep mode
-#define VCC_RUN_VOLTAGE		3300	// for first time setup
-#define BAT_MIN_VOTAGE		2500	// minimum voltage for AA battery pack
+#define VCC_SLEEP_VOLTAGE	1700	//	3000	// send to sleep if voltage goes below this
+#define VCC_REAWAKE_VOLTAGE	1700	//	3200	// to re-awaken after sleep mode
+#define VCC_RUN_VOLTAGE		1700	//	3300	// for first time setup
+#define BAT_MIN_VOTAGE		1700	//	2500	// minimum voltage for AA battery pack
 
 // T - units of 0.01 C
 #define T_DIFF_MAX		15
@@ -522,8 +528,15 @@ unsigned int Read_PD(void);	// read photodiode voltage (connected to P2.?)
 unsigned int Read_PD1(void);	// read photodiode voltage (connected to P2.?)
 
 
-void main (void)
+#define VBAT_SWITCH	BIT6
+#define VBAT_3 BIT5
+// routine for reading voltage Vbat/3
+unsigned int ReadADC_1_5(unsigned int INCH);	//Vref = 2.5V read ADC from INCH channel
+// read ADC A0
+unsigned int adc_read;
+unsigned int Vbat;
 
+void main (void)
 {
   addr_t lAddr;
   char *Flash_Addr;
@@ -531,6 +544,8 @@ void main (void)
 
 
   WDTCTL = WDTPW + WDTHOLD;                 // Stop WDT
+  __delay_cycles(100000); 	// delay in case of swithc bounce on startup
+
 
   P1DIR |= 0x03;                            // Set P1.0,1 Output
   if( CALBC1_1MHZ == 0xFF && CALDCO_1MHZ == 0xFF &&
@@ -598,6 +613,8 @@ void main (void)
   P4DIR = 0xFF;                             // setup port 4
   P4OUT = 0x00;
 
+  P3OUT &= ~0x10;                         // turn on battery
+
   timer_state = timer_state_7;              // set timer state to 2 ~ 10 sec
   change_mode = 10;                         // Default GUI display mode set to
                                             // 10 sec
@@ -605,21 +622,29 @@ void main (void)
   TBCTL |= TBCLR;                           // Clear TBR counter
   TBCCR0 = sec10;	// a_d_wakeup_time;                 // set timer to wakeup time ~ 3 sec
 
-
-  current_voltage = get_voltage();          // get current battery voltage
-  if(current_voltage < VCC_RUN_VOLTAGE)
-  {
-    current_voltage = 0;
-    while (current_voltage < BAT_MIN_VOTAGE)
-    {
-      __bis_SR_register(LPM3_bits + GIE);   // Enter LPM3 w/ interrupts
-      current_voltage = get_voltage();
-    }
-  }
+	if (IN_TEST == 0 )
+	{
+	  current_voltage = get_voltage();          // get current battery voltage
+	  if(current_voltage < VCC_RUN_VOLTAGE)
+	  {
+		current_voltage = 0;
+		while (current_voltage < BAT_MIN_VOTAGE)
+		{
+		  __bis_SR_register(LPM3_bits + GIE);   // Enter LPM3 w/ interrupts
+		  current_voltage = get_voltage();
+		}
+	  }
+	}
 
   SMPL_Ioctl( IOCTL_OBJ_RADIO, IOCTL_ACT_RADIO_AWAKE, "" );
   // unconditional link to AP which is listening due to successful join.
-  linkTo();
+	Temperature = 0;
+	Humidity = 0;
+	// set Vbat switch to OFF
+	P4DIR |= VBAT_SWITCH; // set switch pin (P2.1:pin4) OUTPUT
+	P4OUT &= ~VBAT_SWITCH; // set switch pin (P2.1:pin4) LO
+
+	linkTo();
 }
 
 /*******************************************************************************
@@ -629,6 +654,7 @@ void linkTo(void)
 {
   linkID_t linkID1;
   uint8_t  msg[MESSAGE_LENGTH];
+  unsigned int delay_count = 10;		// for multiple of delay_period (30s)
 
   // keep trying to link... Uses Timer B to wake up periodically
   while (SMPL_SUCCESS != SMPL_Link(&linkID1))
@@ -645,7 +671,8 @@ void linkTo(void)
 	Slave_Present = I2C_Slave_Test(LPS25H_SLAVE_ADDRESS);
 	RegisterData = I2C_Read_Register(WHO_AM_I);
 
-	Slave_Present = I2C_Slave_Test(SHT21_SLAVE_ADDRESS);
+	// SHT21
+//	Slave_Present = I2C_Slave_Test(SHT21_SLAVE_ADDRESS);
 
 	// ADXL362
 	P2SEL &= ~nSS;
@@ -658,210 +685,221 @@ void linkTo(void)
 
 	msg_status |= START_FLAG;
 
-	delay(sec10);                  // enter sleep mode to ensure battery is replenished
+	if (IN_TEST ==0 )
+	{
+		delay(sec10);                  // enter sleep mode to ensure battery is replenished
+	}
 
 
 	//create message
   while(1)
   {
-	  if (MEASURE)
-	  {
-		  // save old values
-			Vcc_last = Vcc;
-			Temperature_last = Temperature;
-			Humidity_last = Humidity;
-			Pressure_last = Pressure;
-			int i;
-			for (i=0; i<3; i++)
-			{
-				Acceleration_last[i] = Acceleration_Hi_Res[i];
-			}
 
-			// Vcc
-			Vcc = get_voltage();
+	  // save old values
+		Vcc_last = Vcc;
+		Temperature_last = Temperature;
+		Humidity_last = Humidity;
+		Pressure_last = Pressure;
 
-			Vcc_diff = Vcc-Vcc_last;
-			if (Vcc_diff <0 )
-			{
-				Vcc_diff *= -1;
-			}
-			if (Vcc_diff > VCC_DIFF_MAX)
-			{
-				msg_status |= VCC_FLAG;
-			}
+		// Vbat
+		// read ADC A14 using switch
+		P4OUT |= VBAT_SWITCH;  // set switch pin (P4.6:pin11) HI (on)
+		P4DIR &= ~VBAT_3;  // set ADC pin to INPUT
+		delay(15);		// pause 10 ms
+		adc_read = ReadADC_1_5(INCH_14);	// read A14
+		P4DIR |= VBAT_3; // set ADC pin to OUTPUT
+		P4OUT &= ~VBAT_3; // set ADC pin to LO
+		P4OUT &= ~VBAT_SWITCH;  // set switch pin (P4.6:pin11) LO (off)
+		Vbat = ((long)adc_read*1125/256); // result of Vbat in mV from 2/1 resistor tree and 1500 mV reference
 
-			if ( Vcc < VCC_SLEEP_VOLTAGE )
-			{
-				msg_status |= STOP_FLAG;
-				MEASURE = 0;
-			}
+		// Acceleration
+		int i;
+		for (i=0; i<3; i++)
+		{
+			Acceleration_last[i] = Acceleration_Hi_Res[i];
+		}
+
+		// Vcc
+		Vcc = get_voltage();		// using Vref = 1.5
+
+		Vcc_diff = Vcc-Vcc_last;
+		if (Vcc_diff <0 )
+		{
+			Vcc_diff *= -1;
+		}
+		if (Vcc_diff > VCC_DIFF_MAX)
+		{
+			msg_status |= VCC_FLAG;
+		}
+
+		if ( Vcc < VCC_SLEEP_VOLTAGE )
+		{
+			msg_status |= STOP_FLAG;
+			MEASURE = 0;
+		}
 	//	  	RegisterData = 0;
-			P3SEL &= ~BIT0;					// set to IO function
-			P3OUT |= BIT0;					// Set CC2500 CS line high (DISABLE RADIO COMMS)
-			P3DIR |= BIT0;
+		P3SEL &= ~BIT0;					// set to IO function
+		P3OUT |= BIT0;					// Set CC2500 CS line high (DISABLE RADIO COMMS)
+		P3DIR |= BIT0;
 
-			I2C_Init();
-			UCB0_MODE = I2C;
+		I2C_Init();
+		UCB0_MODE = I2C;
 
-			// LPS25H
-			// TESTI2C BUS FOR LPS25H
-			UCB0CTL1 |= UCTR + UCTXSTT + UCTXSTP;       // I2C TX, start condition (Transmit mode), STOP
-			 while (UCB0CTL1 & UCTXSTP);                 // wait for STOP condition
-			UCB0I2CSA = LPS25H_SLAVE_ADDRESS;
+		// LPS25H
+		// TESTI2C BUS FOR LPS25H
+		UCB0CTL1 |= UCTR + UCTXSTT + UCTXSTP;       // I2C TX, start condition (Transmit mode), STOP
+		 while (UCB0CTL1 & UCTXSTP);                 // wait for STOP condition
+		UCB0I2CSA = LPS25H_SLAVE_ADDRESS;
 	//	    RegisterData = I2C_Read_Register(WHO_AM_I);
-			I2C_Write_Register(CTRL_REG1, PD);		// turn on pressure sensor (one-shot mode)
-			I2C_Write_Register(CTRL_REG2, ONE_SHOT);		// trigger pressure measurement
+		I2C_Write_Register(CTRL_REG1, PD);		// turn on pressure sensor (one-shot mode)
+		I2C_Write_Register(CTRL_REG2, ONE_SHOT);		// trigger pressure measurement
 
-			delay(90);		// pause 60 ms
-			Pressure = ReadPressure();
-			I2C_Write_Register(CTRL_REG1, 0);		// turn off pressure sensor
+		delay(90);		// pause 60 ms
+		Pressure = ReadPressure();
+		I2C_Write_Register(CTRL_REG1, 0);		// turn off pressure sensor
 
-			Pressure_diff = Pressure - Pressure_last;
-			if (Pressure_diff <0 )
-			{
-				Pressure_diff *= -1;
-			}
-			if (Pressure_diff > P_DIFF_MAX)
-			{
-				msg_status |= P_FLAG;
-			}
+		Pressure_diff = Pressure - Pressure_last;
+		if (Pressure_diff <0 )
+		{
+			Pressure_diff *= -1;
+		}
+		if (Pressure_diff > P_DIFF_MAX)
+		{
+			msg_status |= P_FLAG;
+		}
 
 	//
 	////	  	delay(300);		// pause
 	//
-			// SHT21
-			UCB0I2CSA = SHT21_SLAVE_ADDRESS;
-			Humidity = SHT21_RH_Read();
-			Humidity_diff = Humidity - Humidity_last;
-			if ( Humidity_diff < 0 )
-			{
-				Humidity_diff *= -1;
-			}
-			if ( ( Humidity_diff > RH_DIFF_MAX ) | ( Humidity < RH_LOWER ) | ( Humidity > RH_UPPER ) )
-			{
-				msg_status |= RH_FLAG;
-			}
+/*		// SHT21
+		UCB0I2CSA = SHT21_SLAVE_ADDRESS;
+		Humidity = SHT21_RH_Read();
+		Humidity_diff = Humidity - Humidity_last;
+		if ( Humidity_diff < 0 )
+		{
+			Humidity_diff *= -1;
+		}
+		if ( ( Humidity_diff > RH_DIFF_MAX ) | ( Humidity < RH_LOWER ) | ( Humidity > RH_UPPER ) )
+		{
+			msg_status |= RH_FLAG;
+		}
 
 	//	  	delay(150);		// pause
-			Temperature = SHT21_T_Read();
-			Temperature_diff = Temperature-Temperature_last;
-			if (Temperature_diff <0 )
-			{
-				Temperature_diff *= -1;
-			}
-			if ( ( Temperature_diff > T_DIFF_MAX ) | ( Temperature < T_LOWER ) | ( Temperature > T_UPPER ) )
-			{
-				msg_status |= T_FLAG;
-			}
+		Temperature = SHT21_T_Read();
+		Temperature_diff = Temperature-Temperature_last;
+		if (Temperature_diff <0 )
+		{
+			Temperature_diff *= -1;
+		}
+		if ( ( Temperature_diff > T_DIFF_MAX ) | ( Temperature < T_LOWER ) | ( Temperature > T_UPPER ) )
+		{
+			msg_status |= T_FLAG;
+		}*/
+
 	//
 	////	  	delay(300);		// pause
 
-			// ADXL362
-			SPI_Init();
-			UCB0_MODE = SPI;
+		// ADXL362
+		SPI_Init();
+		UCB0_MODE = SPI;
 	//		ADXL362_Write_Register(XL362_SOFT_RESET,XL362_SOFT_RESET_KEY);		// soft reset
-			//ID_adxl = ADXL362_ReadID();
-			// power on
-			ADXL362_Write_Register(XL362_POWER_CTL,XL362_MEASURE);		// set into measurement emode
-			delay(15);		// wait for samples
-			// read data
+		//ID_adxl = ADXL362_ReadID();
+		// power on
+		ADXL362_Write_Register(XL362_POWER_CTL,XL362_MEASURE);		// set into measurement emode
+		delay(15);		// wait for samples
+		// read data
 	//		ADXL362_Read_XYZ_Reg();
-			ADXL362_Read_XYZ_Reg_Hi_Res();
-			// power off
-			ADXL362_Write_Register(XL362_POWER_CTL,0);		// set into sleep emode
-			UCB0CTL1 |= UCSWRST;			// set to reset (power down)
-			for (i=0; i < 3; i++)
+		ADXL362_Read_XYZ_Reg_Hi_Res();
+		// power off
+		ADXL362_Write_Register(XL362_POWER_CTL,0);		// set into sleep emode
+		UCB0CTL1 |= UCSWRST;			// set to reset (power down)
+		for (i=0; i < 3; i++)
+		{
+			Acceleration_diff[i] = Acceleration_Hi_Res[i] - Acceleration_last[i];
+			if (Acceleration_diff[i] <0 )
 			{
-				Acceleration_diff[i] = Acceleration_Hi_Res[i] - Acceleration_last[i];
-				if (Acceleration_diff[i] <0 )
+				Acceleration_diff[i] *= -1;
+			}
+			if (Acceleration_diff[i] > ACC_DIFF_MAX )
+			{
+				msg_status |= ACC_FLAG;
+			}
+		}
+
+		//Vpd = 111;
+		Vpd = Read_PD();	// read photodiode voltage (connected to P2.0(-) to P2.2 (+))
+//		Vpd = 0;
+		P2DIR |= (BIT0 + BIT1 + BIT2);
+		P2OUT &= ~(BIT0 + BIT1 + BIT2);
+
+//		delay_count =9/((Vpd>>7)+1);
+//		delay_count = 2;
+	//			if ( msg_status != 0 )
+			{
+
+	/* 		int i = 0;
+			for (i=0 ; i < (MESSAGE_LENGTH) ; i++)
+			{
+				msg[i] = i;
+			} */
+
+			i=0;
+			msg[i++] = NODE_ID;		// ID of node
+			msg[i++] = (Vcc>>8)&0xFF;
+			msg[i++] = Vcc&0xFF;
+			msg[i++] = (Temperature>>8)&0xFF;
+			msg[i++] = Temperature&0xFF;
+			msg[i++] = (Humidity>>8)&0xFF;
+			msg[i++] = Humidity&0xFF;
+			msg[i++] = (Acceleration_Hi_Res[0]>>8)&0xFF;
+			msg[i++] = Acceleration_Hi_Res[0]&0xFF;
+			msg[i++] = (Acceleration_Hi_Res[1]>>8)&0xFF;
+			msg[i++] = Acceleration_Hi_Res[1]&0xFF;
+			msg[i++] = (Acceleration_Hi_Res[2]>>8)&0xFF;
+			msg[i++] = Acceleration_Hi_Res[2]&0xFF;
+			msg[i++] = ((Pressure>>8)>>8)&0xFF;
+			msg[i++] = (Pressure>>8)&0xFF;
+			msg[i++] = Pressure&0xFF;
+			msg[i++] = (Vpd>>8)&0xFF;
+			msg[i++] = Vpd&0xFF;
+			msg[i++] = (Vbat>>8)&0xFF;
+			msg[i++] = Vbat&0xFF;
+			msg[i++] = msg_status;
+
+
+			MRFI_Init();
+	//		mrfiSpiInit();
+		// Wake radio-up
+		SMPL_Ioctl( IOCTL_OBJ_RADIO, IOCTL_ACT_RADIO_AWAKE, "" );
+
+		  // Send message TRANSMIT
+		  if (SMPL_SUCCESS == SMPL_Send(linkID1, msg, sizeof(msg)))
+		  {
+	 //         status_indicator(status_one, 2);	// Blink Green LED if success.
+		  }
+		  else                                  // Blink RED LED if transmission
+		  {                                     // failed
+	//        status_indicator(status_one, 1);
+		  }
+		SMPL_Ioctl( IOCTL_OBJ_RADIO, IOCTL_ACT_RADIO_SLEEP, "" );
+
+
+	 //   status_indicator(status_one, 2);	// Blink Green LED if success.
+		msg_status = 0;
+			}	// end of status if loop
+			if (IN_TEST)
+			{
+				delay(test_delay);                  // enter sleep mode between measurements
+				MEASURE = 1;
+
+			}
+			else
+			{
+				for (i=0 ; i < delay_count  ; i++)
 				{
-					Acceleration_diff[i] *= -1;
-				}
-				if (Acceleration_diff[i] > ACC_DIFF_MAX )
-				{
-					msg_status |= ACC_FLAG;
+					   delay(delay_period);                  // enter sleep mode between measurements
 				}
 			}
-
-	        Vpd = Read_PD();	// read photodiode voltage (connected to P2.0(-) to P2.2 (+))
-
-//			if ( msg_status != 0 )
-				{
-
-		/* 		int i = 0;
-				for (i=0 ; i < (MESSAGE_LENGTH) ; i++)
-				{
-					msg[i] = i;
-				} */
-
-				i=0;
-				msg[i++] = ID;		// ID of node
-				msg[i++] = (Vcc>>8)&0xFF;
-				msg[i++] = Vcc&0xFF;
-				msg[i++] = (Temperature>>8)&0xFF;
-				msg[i++] = Temperature&0xFF;
-				msg[i++] = (Humidity>>8)&0xFF;
-				msg[i++] = Humidity&0xFF;
-				msg[i++] = (Acceleration_Hi_Res[0]>>8)&0xFF;
-				msg[i++] = Acceleration_Hi_Res[0]&0xFF;
-				msg[i++] = (Acceleration_Hi_Res[1]>>8)&0xFF;
-				msg[i++] = Acceleration_Hi_Res[1]&0xFF;
-				msg[i++] = (Acceleration_Hi_Res[2]>>8)&0xFF;
-				msg[i++] = Acceleration_Hi_Res[2]&0xFF;
-				msg[i++] = ((Pressure>>8)>>8)&0xFF;
-				msg[i++] = (Pressure>>8)&0xFF;
-				msg[i++] = Pressure&0xFF;
-				msg[i++] = (Vpd>>8)&0xFF;
-				msg[i++] = Vpd&0xFF;
-				msg[i++] = msg_status;
-
-
-				MRFI_Init();
-		//		mrfiSpiInit();
-			// Wake radio-up
-			SMPL_Ioctl( IOCTL_OBJ_RADIO, IOCTL_ACT_RADIO_AWAKE, "" );
-
-			  // Send message
-			  if (SMPL_SUCCESS == SMPL_Send(linkID1, msg, sizeof(msg)))
-			  {
-		 //         status_indicator(status_one, 2);	// Blink Green LED if success.
-			  }
-			  else                                  // Blink RED LED if transmission
-			  {                                     // failed
-		//        status_indicator(status_one, 1);
-			  }
-			SMPL_Ioctl( IOCTL_OBJ_RADIO, IOCTL_ACT_RADIO_SLEEP, "" );
-
-
-		 //   status_indicator(status_one, 2);	// Blink Green LED if success.
-			msg_status = 0;
-				}	// end of status if loop
-
-		    for (i=0 ; i <2  ; i++)
-			{
-				   delay(sec30);                  // enter sleep mode between measurements
-			}
-//		    delay(sec2);                  // enter sleep mode between measurements
-	}	// end of MEASURE if loop
-
-	  else
-	  {
-		  Vcc = get_voltage();
-		  if (Vcc > VCC_REAWAKE_VOLTAGE)
-		  {
-			  msg_status |= RESTART_FLAG;
-			  msg_status &= STOP_FLAG;
-		  }
-		  else
-		  {
-				int i;
-			    for (i=0 ; i <20  ; i++)
-				{
-					   delay(sec30);                  // enter sleep mode between measurements
-				}
-//			//	   delay(sec10);                  // enter sleep mode between measurements
-		  }
-	  }
 
   }
 }
@@ -1072,14 +1110,14 @@ unsigned int get_voltage(void)
   unsigned int rt_volts;
 
   ADC10CTL1 = INCH_11;                    // AVcc/2
-  ADC10CTL0 = SREF_1 + ADC10SHT_2 + REFON + ADC10ON + ADC10IE + REF2_5V;
+  ADC10CTL0 = SREF_1 + ADC10SHT_2 + REFON + ADC10ON + ADC10IE;	// + REF2_5V;
   __delay_cycles(250);                    // delay to allow reference to settle
   ADC10CTL0 |= ENC + ADC10SC;             // Sampling and conversion start
   __bis_SR_register(LPM0_bits + GIE);     // LPM0 with interrupts enabled
   rt_volts = ADC10MEM;
   ADC10CTL0 &= ~ENC;
   ADC10CTL0 &= ~(REFON + ADC10ON);        // turn off A/D to save power
-  rt_volts = ((long)rt_volts*625)/128;
+  rt_volts = ((long)rt_volts*375)/128;	//625)/128;
   return (unsigned int)(rt_volts);
 }
 
@@ -2039,7 +2077,7 @@ __interrupt void USCIAB0TX_ISR(void)
  	unsigned int ADC_Read;
      // Measure PD Voltage
      ADC10CTL1 = INCH;                    // read input channel
-     ADC10CTL0 = SREF_1 + ADC10SHT_3 + REFON + ADC10ON + ADC10IE + REF2_5V;
+     ADC10CTL0 = SREF_1 + ADC10SHT_3 + REFON + ADC10ON + ADC10IE;	//
      __delay_cycles(350);                    // delay to allow reference to settle
      ADC10CTL0 |= ENC + ADC10SC;             // Sampling and conversion start
      __bis_SR_register(LPM0_bits + GIE);     // LPM0 with interrupts enabled
