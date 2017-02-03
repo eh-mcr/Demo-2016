@@ -49,8 +49,8 @@ Temporary Items
 /.config/
 
 # Ignore everything in the root except the peer applications and components directories
-/* # ignore everything
-*
+/* # ignore all folders
+.* # ignore all settings files
 !.gitignore # don\t ignore this ignore file!
 !Peer Applications/
 !Components/
