@@ -1827,7 +1827,7 @@ char I2C_Slave_Test(char Slave_Address){
 	while (Slave_Present != YES)
 	{
 		UCB0CTL1 |= UCTR + UCTXSTT + UCTXSTP;       // I2C TX, start condition (Transmit mode), STOP
-		 while (UCB0CTL1 & UCTXSTP);                 // wait for STOP condition
+		while (UCB0CTL1 & UCTXSTP);                 // wait for STOP condition
 		 if ((UCB0STAT & UCNACKIFG)== 0)		// SLAVE PRESENT?
 		 {
 			  Slave_Present = YES;
