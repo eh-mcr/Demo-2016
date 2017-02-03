@@ -2,9 +2,6 @@
 // Recieve data from ED and display through COM port.
 // 18/09/2015
 // use with corresponding ED
-// comment from OSX
-// comment from windows
-// comment from linux
 
 #include "bsp.h"
 #include "mrfi.h"
@@ -16,8 +13,7 @@
 #include "nwk.h"
 
 #include "msp430x22x4.h"
-
-#include "../peer applications/vlo_rand.h"
+#include "vlo_rand.h"
 
 #define MESSAGE_LENGTH		21	// must be less than or equal to MAX_APP_PAYLOAD	//25
 void TXString( char* string, int length );
