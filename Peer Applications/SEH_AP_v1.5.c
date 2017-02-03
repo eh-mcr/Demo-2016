@@ -2,6 +2,7 @@
 // Recieve data from ED and display through COM port.
 // 18/09/2015
 // use with corresponding ED
+// comment from OSX
 
 #include "bsp.h"
 #include "mrfi.h"
