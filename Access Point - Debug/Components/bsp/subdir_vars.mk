@@ -10,10 +10,10 @@ OBJS += \
 ./Components/bsp/bsp.obj 
 
 C_DEPS += \
-./Components/bsp/bsp.pp 
+./Components/bsp/bsp.d 
 
 C_DEPS__QUOTED += \
-"Components\bsp\bsp.pp" 
+"Components\bsp\bsp.d" 
 
 OBJS__QUOTED += \
 "Components\bsp\bsp.obj" 

@@ -14,20 +14,20 @@ OBJS += \
 ./Peer\ Applications/vlo_rand.obj 
 
 ASM_DEPS += \
-./Peer\ Applications/vlo_rand.pp 
+./Peer\ Applications/vlo_rand.d 
 
 C_DEPS += \
-./Peer\ Applications/SEH_ED_v1.5.pp 
+./Peer\ Applications/SEH_ED_v1.5.d 
 
 C_DEPS__QUOTED += \
-"Peer Applications\SEH_ED_v1.5.pp" 
+"Peer Applications\SEH_ED_v1.5.d" 
 
 OBJS__QUOTED += \
 "Peer Applications\SEH_ED_v1.5.obj" \
 "Peer Applications\vlo_rand.obj" 
 
 ASM_DEPS__QUOTED += \
-"Peer Applications\vlo_rand.pp" 
+"Peer Applications\vlo_rand.d" 
 
 C_SRCS__QUOTED += \
 "../Peer Applications/SEH_ED_v1.5.c" 

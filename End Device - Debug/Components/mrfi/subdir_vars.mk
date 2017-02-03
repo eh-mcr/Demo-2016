@@ -10,10 +10,10 @@ OBJS += \
 ./Components/mrfi/mrfi.obj 
 
 C_DEPS += \
-./Components/mrfi/mrfi.pp 
+./Components/mrfi/mrfi.d 
 
 C_DEPS__QUOTED += \
-"Components\mrfi\mrfi.pp" 
+"Components\mrfi\mrfi.d" 
 
 OBJS__QUOTED += \
 "Components\mrfi\mrfi.obj" 

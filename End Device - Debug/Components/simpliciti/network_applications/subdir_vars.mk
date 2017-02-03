@@ -22,22 +22,22 @@ OBJS += \
 ./Components/simpliciti/network_applications/nwk_security.obj 
 
 C_DEPS += \
-./Components/simpliciti/network_applications/nwk_freq.pp \
-./Components/simpliciti/network_applications/nwk_ioctl.pp \
-./Components/simpliciti/network_applications/nwk_join.pp \
-./Components/simpliciti/network_applications/nwk_link.pp \
-./Components/simpliciti/network_applications/nwk_mgmt.pp \
-./Components/simpliciti/network_applications/nwk_ping.pp \
-./Components/simpliciti/network_applications/nwk_security.pp 
+./Components/simpliciti/network_applications/nwk_freq.d \
+./Components/simpliciti/network_applications/nwk_ioctl.d \
+./Components/simpliciti/network_applications/nwk_join.d \
+./Components/simpliciti/network_applications/nwk_link.d \
+./Components/simpliciti/network_applications/nwk_mgmt.d \
+./Components/simpliciti/network_applications/nwk_ping.d \
+./Components/simpliciti/network_applications/nwk_security.d 
 
 C_DEPS__QUOTED += \
-"Components\simpliciti\network_applications\nwk_freq.pp" \
-"Components\simpliciti\network_applications\nwk_ioctl.pp" \
-"Components\simpliciti\network_applications\nwk_join.pp" \
-"Components\simpliciti\network_applications\nwk_link.pp" \
-"Components\simpliciti\network_applications\nwk_mgmt.pp" \
-"Components\simpliciti\network_applications\nwk_ping.pp" \
-"Components\simpliciti\network_applications\nwk_security.pp" 
+"Components\simpliciti\network_applications\nwk_freq.d" \
+"Components\simpliciti\network_applications\nwk_ioctl.d" \
+"Components\simpliciti\network_applications\nwk_join.d" \
+"Components\simpliciti\network_applications\nwk_link.d" \
+"Components\simpliciti\network_applications\nwk_mgmt.d" \
+"Components\simpliciti\network_applications\nwk_ping.d" \
+"Components\simpliciti\network_applications\nwk_security.d" 
 
 OBJS__QUOTED += \
 "Components\simpliciti\network_applications\nwk_freq.obj" \
