@@ -9,25 +9,25 @@ ASM_SRCS += \
 C_SRCS += \
 ../Peer\ Applications/SEH_AP_v1.5.c 
 
+C_DEPS += \
+./Peer\ Applications/SEH_AP_v1.5.d 
+
 OBJS += \
 ./Peer\ Applications/SEH_AP_v1.5.obj \
 ./Peer\ Applications/vlo_rand.obj 
 
 ASM_DEPS += \
-./Peer\ Applications/vlo_rand.pp 
-
-C_DEPS += \
-./Peer\ Applications/SEH_AP_v1.5.pp 
-
-C_DEPS__QUOTED += \
-"Peer Applications\SEH_AP_v1.5.pp" 
+./Peer\ Applications/vlo_rand.d 
 
 OBJS__QUOTED += \
-"Peer Applications\SEH_AP_v1.5.obj" \
-"Peer Applications\vlo_rand.obj" 
+"Peer Applications/SEH_AP_v1.5.obj" \
+"Peer Applications/vlo_rand.obj" 
+
+C_DEPS__QUOTED += \
+"Peer Applications/SEH_AP_v1.5.d" 
 
 ASM_DEPS__QUOTED += \
-"Peer Applications\vlo_rand.pp" 
+"Peer Applications/vlo_rand.d" 
 
 C_SRCS__QUOTED += \
 "../Peer Applications/SEH_AP_v1.5.c" 

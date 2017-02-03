@@ -6,17 +6,17 @@
 C_SRCS += \
 ../Components/bsp/bsp.c 
 
+C_DEPS += \
+./Components/bsp/bsp.d 
+
 OBJS += \
 ./Components/bsp/bsp.obj 
 
-C_DEPS += \
-./Components/bsp/bsp.pp 
+OBJS__QUOTED += \
+"Components/bsp/bsp.obj" 
 
 C_DEPS__QUOTED += \
-"Components\bsp\bsp.pp" 
-
-OBJS__QUOTED += \
-"Components\bsp\bsp.obj" 
+"Components/bsp/bsp.d" 
 
 C_SRCS__QUOTED += \
 "../Components/bsp/bsp.c" 

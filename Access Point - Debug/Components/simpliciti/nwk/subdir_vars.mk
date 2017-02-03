@@ -10,6 +10,13 @@ C_SRCS += \
 ../Components/simpliciti/nwk/nwk_frame.c \
 ../Components/simpliciti/nwk/nwk_globals.c 
 
+C_DEPS += \
+./Components/simpliciti/nwk/nwk.d \
+./Components/simpliciti/nwk/nwk_QMgmt.d \
+./Components/simpliciti/nwk/nwk_api.d \
+./Components/simpliciti/nwk/nwk_frame.d \
+./Components/simpliciti/nwk/nwk_globals.d 
+
 OBJS += \
 ./Components/simpliciti/nwk/nwk.obj \
 ./Components/simpliciti/nwk/nwk_QMgmt.obj \
@@ -17,26 +24,19 @@ OBJS += \
 ./Components/simpliciti/nwk/nwk_frame.obj \
 ./Components/simpliciti/nwk/nwk_globals.obj 
 
-C_DEPS += \
-./Components/simpliciti/nwk/nwk.pp \
-./Components/simpliciti/nwk/nwk_QMgmt.pp \
-./Components/simpliciti/nwk/nwk_api.pp \
-./Components/simpliciti/nwk/nwk_frame.pp \
-./Components/simpliciti/nwk/nwk_globals.pp 
+OBJS__QUOTED += \
+"Components/simpliciti/nwk/nwk.obj" \
+"Components/simpliciti/nwk/nwk_QMgmt.obj" \
+"Components/simpliciti/nwk/nwk_api.obj" \
+"Components/simpliciti/nwk/nwk_frame.obj" \
+"Components/simpliciti/nwk/nwk_globals.obj" 
 
 C_DEPS__QUOTED += \
-"Components\simpliciti\nwk\nwk.pp" \
-"Components\simpliciti\nwk\nwk_QMgmt.pp" \
-"Components\simpliciti\nwk\nwk_api.pp" \
-"Components\simpliciti\nwk\nwk_frame.pp" \
-"Components\simpliciti\nwk\nwk_globals.pp" 
-
-OBJS__QUOTED += \
-"Components\simpliciti\nwk\nwk.obj" \
-"Components\simpliciti\nwk\nwk_QMgmt.obj" \
-"Components\simpliciti\nwk\nwk_api.obj" \
-"Components\simpliciti\nwk\nwk_frame.obj" \
-"Components\simpliciti\nwk\nwk_globals.obj" 
+"Components/simpliciti/nwk/nwk.d" \
+"Components/simpliciti/nwk/nwk_QMgmt.d" \
+"Components/simpliciti/nwk/nwk_api.d" \
+"Components/simpliciti/nwk/nwk_frame.d" \
+"Components/simpliciti/nwk/nwk_globals.d" 
 
 C_SRCS__QUOTED += \
 "../Components/simpliciti/nwk/nwk.c" \
