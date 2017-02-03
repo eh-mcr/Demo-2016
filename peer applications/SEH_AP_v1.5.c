@@ -13,7 +13,8 @@
 #include "nwk.h"
 
 #include "msp430x22x4.h"
-#include "vlo_rand.h"
+
+#include "../peer applications/vlo_rand.h"
 
 #define MESSAGE_LENGTH		21	// must be less than or equal to MAX_APP_PAYLOAD	//25
 void TXString( char* string, int length );
