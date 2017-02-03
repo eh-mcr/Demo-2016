@@ -50,6 +50,7 @@ Temporary Items
 
 # Ignore everything in the root except the peer applications and components directories
 /* # ignore everything
+*
 !.gitignore # don\t ignore this ignore file!
 !Peer Applications/
 !Components/
