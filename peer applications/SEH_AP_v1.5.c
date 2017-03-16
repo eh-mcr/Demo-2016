@@ -16,7 +16,7 @@
 
 #include "../peer applications/vlo_rand.h"
 
-#define MESSAGE_LENGTH		21	// must be less than or equal to MAX_APP_PAYLOAD	//25
+#define MESSAGE_LENGTH		25	// must be less than or equal to MAX_APP_PAYLOAD	//25
 void TXString( char* string, int length );
 void MCU_Init(void);
 void transmitData(int addr, signed char rssi,  char msg[MESSAGE_LENGTH] );
@@ -220,21 +220,24 @@ void transmitData(int addr, signed char rssi,  char msg[MESSAGE_LENGTH] )
 void transmitDataString(char addr[4],char rssi[3], char msg[MESSAGE_LENGTH] )
 {
 
-	char output[] = {"id=X.XX&vcc=X.XXX&t=XXX.XX&rh=XX.XX&acc_x=XXXXX.XX&acc_y=XXXXX.XX&acc_z=XXXXX.XX&p=XXXX.XX&vpd=XXXX.X&vbat=XXXX.X&status=XXXXXXXX.X\r\n"};
+	char output[] = {"id=X.XX&vcc=XXXX.X&t=XXX.XX&rh=XX.XX&acc_x=XXXXX.XX&acc_y=XXXXX.XX&acc_z=XXXXX.XX&p=XXXX.XX&vpd=XXXX.X&vbat=XXXX.X&status1=XXXXXXXX.X&status2=XXXXXXXX.X&txno=XXXXX.0&rssi=XXX.X\r\n"};
 	//				  0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
 	//				  0         1         2         3         4         5         6         7         8         1         2         3         4
 
 	char id_string[] = {"Y.YY"};		// add '0' so that python can read it (for some reason only reads floats, not ints)
-	char vcc_string[] = {"Y.YYY"};
+	char vcc_string[] = {"YYYY.0"};
 	char t_string[] = {"YYY.YY"};
 	char rh_string[] = {"YY.YY"};
 	char acc_x_string[] = {"YYYYY.00"};
 	char acc_y_string[] = {"YYYYY.00"};
 	char acc_z_string[] = {"YYYYY.00"};
 	char p_string[] = {"YYYY.YY"};
-	char status_string[] = {"bbbbbbbb.0"};
+	char status_string1[] = {"bbbbbbbb.0"};
+	char status_string2[] = {"bbbbbbbb.0"};
 	char vpd_string[] = {"XXXX.0"};
 	char vbat_string[] = {"XXXX.0"};
+	char count_string[] = {"XXXXX.0"};
+	char rssi_string[] = {"XXX.0"};
 	int i,j;
 
 	i=0;
@@ -250,7 +253,9 @@ void transmitDataString(char addr[4],char rssi[3], char msg[MESSAGE_LENGTH] )
 	P = (P<<8)+msg[i++];
 	int Vpd = (msg[i++]<<8) + msg[i++];
 	int Vbat = (msg[i++]<<8) + msg[i++];
-	char msg_status = msg[i++];
+	char msg_status1 = msg[i++];
+	char msg_status2 = msg[i++];
+	unsigned int msg_count = (msg[i++]<<8) + msg[i++];
 
 
 	// ID
@@ -275,9 +280,9 @@ void transmitDataString(char addr[4],char rssi[3], char msg[MESSAGE_LENGTH] )
 
 	// Vcc
 	vcc_string[0] = '0'+((Vcc/1000)%10);
-	vcc_string[2] = '0'+((Vcc/100)%10);
-	vcc_string[3] = '0'+((Vcc/10)%10);
-	vcc_string[4] = '0'+(Vcc%10);
+	vcc_string[1] = '0'+((Vcc/100)%10);
+	vcc_string[2] = '0'+((Vcc/10)%10);
+	vcc_string[3] = '0'+(Vcc%10);
 
 	// T
 	if( T < 0 )
@@ -468,12 +473,34 @@ void transmitDataString(char addr[4],char rssi[3], char msg[MESSAGE_LENGTH] )
 	vbat_string[2] = '0'+((Vbat/10)%10);
 	vbat_string[3] = '0'+(Vbat%10);
 
-	// Status
+	// Status1
 	for (i=8; i>0; i--)
 	{
-		status_string[i-1] = '0' + msg_status%2;
-		msg_status = msg_status/2;
+		status_string1[i-1] = '0' + msg_status1%2;
+		msg_status1 = msg_status1>>1;
 	}
+
+	// Status2
+	for (i=8; i>0; i--)
+	{
+		status_string2[i-1] = '0' + msg_status2%2;
+		msg_status2 = msg_status2>>1;
+	}
+
+	// MSG_COUNT
+	count_string[0] = '0'+((msg_count/10000)%10);
+	count_string[1] = '0'+((msg_count/1000)%10);
+	count_string[2] = '0'+((msg_count/100)%10);
+	count_string[3] = '0'+((msg_count/10)%10);
+	count_string[4] = '0'+(msg_count%10);
+
+
+	// RSSI - replace into string with .0
+	for (i=3; i>0; i--)
+	{
+	rssi_string[i-1] = rssi[i-1];
+	}
+
 
 // CREATE OUTPUT
 	j=0;
@@ -484,7 +511,8 @@ void transmitDataString(char addr[4],char rssi[3], char msg[MESSAGE_LENGTH] )
 		output[i+j] = id_string[i];
 	}
 	j += i;
-	j += 1;
+	j += 1;	// count "&"
+
 	// Vcc=
 	j += 4;
 	for (i = 0; i<sizeof(vcc_string)-1; i++)
@@ -492,7 +520,7 @@ void transmitDataString(char addr[4],char rssi[3], char msg[MESSAGE_LENGTH] )
 		output[i+j] = vcc_string[i];
 	}
 	j += i;
-	j += 1;
+	j += 1;	// count "&"
 
 	// T=
 	j += 2;
@@ -501,7 +529,7 @@ void transmitDataString(char addr[4],char rssi[3], char msg[MESSAGE_LENGTH] )
 		output[i+j] = t_string[i];
 	}
 	j += i;
-	j += 1;
+	j += 1;	// count "&"
 
 	// RH=
 	j += 3;
@@ -510,7 +538,7 @@ void transmitDataString(char addr[4],char rssi[3], char msg[MESSAGE_LENGTH] )
 		output[i+j] = rh_string[i];
 	}
 	j += i;
-	j += 1;
+	j += 1;	// count "&"
 
 	// Acc_x=
 	j += 6;
@@ -519,7 +547,7 @@ void transmitDataString(char addr[4],char rssi[3], char msg[MESSAGE_LENGTH] )
 		output[i+j] = acc_x_string[i];
 	}
 	j += i;
-	j += 1;
+	j += 1;	// count "&"
 
 	// Acc_y=
 	j += 6;
@@ -528,7 +556,7 @@ void transmitDataString(char addr[4],char rssi[3], char msg[MESSAGE_LENGTH] )
 		output[i+j] = acc_y_string[i];
 	}
 	j += i;
-	j += 1;
+	j += 1;	// count "&"
 
 	// Acc_z=
 	j += 6;
@@ -537,7 +565,7 @@ void transmitDataString(char addr[4],char rssi[3], char msg[MESSAGE_LENGTH] )
 		output[i+j] = acc_z_string[i];
 	}
 	j += i;
-	j += 1;
+	j += 1;	// count "&"
 
 	// P=
 	j += 2;
@@ -546,7 +574,7 @@ void transmitDataString(char addr[4],char rssi[3], char msg[MESSAGE_LENGTH] )
 		output[i+j] = p_string[i];
 	}
 	j += i;
-	j += 1;
+	j += 1;	// count "&"
 
 	// Vpd=
 	j += 4;
@@ -555,7 +583,7 @@ void transmitDataString(char addr[4],char rssi[3], char msg[MESSAGE_LENGTH] )
 		output[i+j] = vpd_string[i];
 	}
 	j += i;
-	j += 1;
+	j += 1;	// count "&"
 
 	// Vbat=
 	j += 5;
@@ -564,16 +592,47 @@ void transmitDataString(char addr[4],char rssi[3], char msg[MESSAGE_LENGTH] )
 		output[i+j] = vbat_string[i];
 	}
 	j += i;
-	j += 1;
+	j += 1;	// count "&"
 
-	// status=
-	j += 7;
-	for (i = 0; i<sizeof(status_string)-1; i++)
+	// status1=
+	j += 8;
+	for (i = 0; i<sizeof(status_string1)-1; i++)
 	{
-		output[i+j] = status_string[i];
+		output[i+j] = status_string1[i];
 	}
 	j += i;
-	j += 1;
+	j += 1;	// count "&"
+
+	// status2=
+	j += 8;
+	for (i = 0; i<sizeof(status_string2)-1; i++)
+	{
+		output[i+j] = status_string2[i];
+	}
+	j += i;
+	j += 1;	// count "&"
+
+	// txno=
+	j += 5;
+	for (i = 0; i<sizeof(count_string)-1; i++)
+	{
+		output[i+j] = count_string[i];
+	}
+	j += i;
+	j += 1;	// count "&"
+
+	// rssi=
+	j += 5;
+	for (i = 0; i<sizeof(rssi_string)-1; i++)
+	{
+		output[i+j] = rssi_string[i];
+	}
+	j += i;
+	j += 1;	// count "&"
+//	output[j++] = rssi[0];
+//	output[j++] = rssi[1];
+//	output[j++] = rssi[2];
+
 
 	TXString(output, sizeof output);
 //	TXString(msg, sizeof msg);
