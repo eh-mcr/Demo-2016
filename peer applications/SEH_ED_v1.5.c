@@ -17,7 +17,6 @@
 #define	ON                1
 #define OFF               0
 
-#define IN_TEST	OFF //ON/OFF	// set to non-zero for testing
 #define WakeupPeriod      15000             // ~10 sec (=15000/(12000/8))
 #define a_d_wakeup_time   15000              // ~30 sec
 #define TXPeriod          7500              // ~5 sec  (=7500/(12000/8))
@@ -68,6 +67,8 @@
                                             // battery
 #define xmt_count         400               // # max transmit on battery - 400
                                             // magic number
+unsigned char IN_TEST = OFF; //ON/OFF	// set to non-zero for testing
+unsigned int msg_count = 0;
 
 unsigned int timer_state;
 unsigned char change_mode;
@@ -92,7 +93,7 @@ void display_mode(void);
 void check_bat_full(void);
 void createRandomAddress(void);
 
-#define MESSAGE_LENGTH		21	// must be less than or equal to MAX_APP_PAYLOAD	//25
+#define MESSAGE_LENGTH		25	// must be less than or equal to MAX_APP_PAYLOAD	//25
 #define NODE_ID		79 //27/79				// NODE ID - MUST BE SEPERATE FOR EVERY NODE USED.  Use te last two digist from eZ430-RF2500 serial number.
 
 #define	YES	1
@@ -101,7 +102,8 @@ void createRandomAddress(void);
 unsigned int Vcc;
 unsigned int i;
 // msg_status
-unsigned char msg_status = 0;
+unsigned char msg_status1 = 0;
+unsigned char msg_status2 = 0;
 #define START_FLAG		BIT0
 #define RESTART_FLAG	BIT1
 #define T_FLAG			BIT2
@@ -671,8 +673,9 @@ void linkTo(void)
 	Slave_Present = I2C_Slave_Test(LPS25H_SLAVE_ADDRESS);
 	RegisterData = I2C_Read_Register(WHO_AM_I);
 
-	// SHT21
-//	Slave_Present = I2C_Slave_Test(SHT21_SLAVE_ADDRESS);
+	// **SHT21**
+ 	Slave_Present = I2C_Slave_Test(SHT21_SLAVE_ADDRESS);
+
 
 	// ADXL362
 	P2SEL &= ~nSS;
@@ -683,14 +686,18 @@ void linkTo(void)
 	ID_adxl = ADXL362_ReadID();
 	UCB0CTL1 |= UCSWRST;			// set to reset (power down)
 
-	msg_status |= START_FLAG;
+	msg_status1 |= START_FLAG;
 
-	if (IN_TEST ==0 )
+//	if (IN_TEST ==0 )
 	{
 		delay(sec10);                  // enter sleep mode to ensure battery is replenished
 	}
 
-
+	IN_TEST = 0;
+	status_indicator(status_one, 2);	// Blink GREEN LED
+	delay(150);
+	status_indicator(status_one, 1);	// Blink RED
+	delay(150);
 	//create message
   while(1)
   {
@@ -729,12 +736,12 @@ void linkTo(void)
 		}
 		if (Vcc_diff > VCC_DIFF_MAX)
 		{
-			msg_status |= VCC_FLAG;
+			msg_status1 |= VCC_FLAG;
 		}
 
 		if ( Vcc < VCC_SLEEP_VOLTAGE )
 		{
-			msg_status |= STOP_FLAG;
+			msg_status1 |= STOP_FLAG;
 			MEASURE = 0;
 		}
 	//	  	RegisterData = 0;
@@ -765,13 +772,13 @@ void linkTo(void)
 		}
 		if (Pressure_diff > P_DIFF_MAX)
 		{
-			msg_status |= P_FLAG;
+			msg_status1 |= P_FLAG;
 		}
 
 	//
 	////	  	delay(300);		// pause
 	//
-/*		// SHT21
+///*		// **SHT21**
 		UCB0I2CSA = SHT21_SLAVE_ADDRESS;
 		Humidity = SHT21_RH_Read();
 		Humidity_diff = Humidity - Humidity_last;
@@ -781,7 +788,7 @@ void linkTo(void)
 		}
 		if ( ( Humidity_diff > RH_DIFF_MAX ) | ( Humidity < RH_LOWER ) | ( Humidity > RH_UPPER ) )
 		{
-			msg_status |= RH_FLAG;
+			msg_status1 |= RH_FLAG;
 		}
 
 	//	  	delay(150);		// pause
@@ -793,8 +800,9 @@ void linkTo(void)
 		}
 		if ( ( Temperature_diff > T_DIFF_MAX ) | ( Temperature < T_LOWER ) | ( Temperature > T_UPPER ) )
 		{
-			msg_status |= T_FLAG;
-		}*/
+			msg_status1 |= T_FLAG;
+		}
+//*/
 
 	//
 	////	  	delay(300);		// pause
@@ -822,7 +830,7 @@ void linkTo(void)
 			}
 			if (Acceleration_diff[i] > ACC_DIFF_MAX )
 			{
-				msg_status |= ACC_FLAG;
+				msg_status1 |= ACC_FLAG;
 			}
 		}
 
@@ -832,9 +840,13 @@ void linkTo(void)
 		P2DIR |= (BIT0 + BIT1 + BIT2);
 		P2OUT &= ~(BIT0 + BIT1 + BIT2);
 
+		// msg_status2
+		msg_status2 = 0;
+		msg_status2 |= IN_TEST;	// indicate sensor node test status
+
 //		delay_count =9/((Vpd>>7)+1);
 //		delay_count = 2;
-	//			if ( msg_status != 0 )
+	//			if ( msg_status1 != 0 )
 			{
 
 	/* 		int i = 0;
@@ -864,8 +876,10 @@ void linkTo(void)
 			msg[i++] = Vpd&0xFF;
 			msg[i++] = (Vbat>>8)&0xFF;
 			msg[i++] = Vbat&0xFF;
-			msg[i++] = msg_status;
-
+			msg[i++] = msg_status1;
+			msg[i++] = msg_status2;
+			msg[i++] = (msg_count>>8)&0xFF;
+			msg[i++] = msg_count&0xFF;
 
 			MRFI_Init();
 	//		mrfiSpiInit();
@@ -873,20 +887,36 @@ void linkTo(void)
 		SMPL_Ioctl( IOCTL_OBJ_RADIO, IOCTL_ACT_RADIO_AWAKE, "" );
 
 		  // Send message TRANSMIT
-		  if (SMPL_SUCCESS == SMPL_Send(linkID1, msg, sizeof(msg)))
+		  if (SMPL_SUCCESS == SMPL_Send(linkID1, msg, sizeof(msg)))	// Blink GREEN LED if transmission succeeds
 		  {
-	 //         status_indicator(status_one, 2);	// Blink Green LED if success.
+				if (IN_TEST)
+				{
+					//success
+					status_indicator(status_one, 2);	// Blink Green LED if success.
+				}
 		  }
-		  else                                  // Blink RED LED if transmission
-		  {                                     // failed
-	//        status_indicator(status_one, 1);
+		  else                                  // Blink RED LED if transmission failed
+		  {
+				if (IN_TEST)
+				{
+					status_indicator(status_one, 1);
+				}
 		  }
 		SMPL_Ioctl( IOCTL_OBJ_RADIO, IOCTL_ACT_RADIO_SLEEP, "" );
+		if (msg_count == 65535)
+		{
+			msg_count = 0;
+		}
+		else
+		{
+			msg_count++;
+		}
 
 
 	 //   status_indicator(status_one, 2);	// Blink Green LED if success.
-		msg_status = 0;
+		msg_status1 = 0;
 			}	// end of status if loop
+			in_delay = 1;
 			if (IN_TEST)
 			{
 				delay(test_delay);                  // enter sleep mode between measurements
@@ -897,10 +927,13 @@ void linkTo(void)
 			{
 				for (i=0 ; i < delay_count  ; i++)
 				{
-					   delay(delay_period);                  // enter sleep mode between measurements
+					if (in_delay)
+					{
+						   delay(delay_period);                  // enter sleep mode between measurements
+					}
 				}
 			}
-
+			in_delay = 0;
   }
 }
 
@@ -1279,53 +1312,6 @@ __interrupt void ADC10_ISR(void)
 __interrupt void TimerB_ISR (void)
 {
   __bic_SR_register_on_exit(LPM3_bits);     // Clear LPM3 bit from 0(SR)
-}
-
-/*******************************************************************************
-* BEGHDR
-* NAME:        __interrupt void Port_1(void)
-* DESCRIPTION: Port 1 interrupt service routine function key
-* INPUTS:      void
-* PROCESSING:  process the push button to switch to the next time mode
-* OUTPUTS:     void
-********************************************************************************/
-#pragma vector=PORT1_VECTOR
-__interrupt void Port_1(void)
-{
-  if((P3IN & 0x20))                         // /Charge=1; battery, Blink Red
-  {
-    BSP_TURN_ON_LED1();
-    __delay_cycles(10000);
-    BSP_TURN_OFF_LED1();
-  }
-  else                                      // /Charge=0; Solar, blink green
-  {
-    BSP_TURN_ON_LED2();
-    __delay_cycles(10000);
-    BSP_TURN_OFF_LED2();
-  }
-
-  // If successful link, change timer state.
-  if(status == status_six || status == status_five)
-  {
-    if(timer_state >= timer_state_6)        // If transmit time is == 6,
-    {                                       // Set timer_state = 1
-      timer_state = timer_state_1;
-      display_mode();                       // Change GUI display time
-    }
-    else
-    {
-      timer_state++;                        // Change transmit time state
-      display_mode();                       // Change GUI display time
-    }
-    if(in_delay)                            // If in transmit delay, exit and
-    {                                       // send a new packet with new time
-      __bic_SR_register_on_exit(LPM4_bits); // Clear LPM3 bit from 0(SR)
-    }
-  }
-  __delay_cycles(150000);                   // Debounce software delay
-  while(!(P1IN & 0x04));                    // Loop if button is still pressed
-  P1IFG &= ~0x04;                           // P1.2 IFG cleared key interuped
 }
 
 // ******************************************************* //
@@ -2180,3 +2166,46 @@ __interrupt void USCIAB0TX_ISR(void)
 
  	return voltage;
  }
+ /*******************************************************************************
+ * BEGHDR
+ * NAME:        __interrupt void Port_1(void)
+ * DESCRIPTION: Port 1 interrupt service routine function key
+ * INPUTS:      void
+ * PROCESSING:  process the push button to switch to the next time mode
+ * OUTPUTS:     void
+ ********************************************************************************/
+ #pragma vector=PORT1_VECTOR
+ __interrupt void Port_1(void)
+ {
+
+
+
+     if (IN_TEST)	// toggle IN_TEST
+     {
+         BSP_TURN_ON_LED2();			// blink GREEN - going to FIELD
+         __delay_cycles(10000);
+         BSP_TURN_OFF_LED2();
+    	 	 IN_TEST = OFF;
+     }
+     else
+     {
+         BSP_TURN_ON_LED1();			// blink RED - going into TEST mode
+         __delay_cycles(10000);
+         BSP_TURN_OFF_LED1();
+    	 	 IN_TEST = ON;
+     }
+     if(in_delay)                            // If in transmit delay, exit and
+     {                                       // send a new packet with new time
+       __bic_SR_register_on_exit(LPM4_bits); // Clear LPM3 bit from 0(SR)
+       in_delay = OFF;
+     }
+
+   __delay_cycles(150000);                   // Debounce software delay
+   while(!(P1IN & 0x04));                    // Loop if button is still pressed
+   P1IFG &= ~0x04;                           // P1.2 IFG cleared key interuped
+
+   TBCTL &= ~(MC_1);                         // Stop Timer B
+   TBCCR0 = 0;
+   delay(sec1);
+ }
+
